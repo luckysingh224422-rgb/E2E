@@ -1,226 +1,12 @@
 #!/bin/bash
 
 echo "==============================================="
-echo "🚀 INSTAGRAM MESSAGE BOT - RENDER DEPLOYMENT"
+echo "🚀 INSTAGRAM MESSAGE BOT - WEB VERSION"
 echo "==============================================="
 
 # Create necessary directories
 echo "📁 Creating directories..."
 mkdir -p public
-mkdir -p extension
-
-# Create extension files
-echo "🔧 Creating extension files..."
-
-# manifest.json
-cat > extension/manifest.json << 'EOF'
-{
-  "manifest_version": 3,
-  "name": "Instagram Auto Welcome Bot",
-  "version": "1.0",
-  "description": "Send messages from uploaded TXT file with style.",
-  "permissions": ["scripting", "activeTab"],
-  "action": {
-    "default_popup": "popup.html"
-  },
-  "background": {
-    "service_worker": "background.js"
-  },
-  "host_permissions": ["<all_urls>"]
-}
-EOF
-
-# background.js
-cat > extension/background.js << 'EOF'
-// Background script placeholder
-console.log("Instagram Auto Welcome Bot background script loaded");
-EOF
-
-# content_script.js
-cat > extension/content_script.js << 'EOF'
-let isSending = false;
-let timeoutId = null;
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.stop) {
-        stopSending();
-        sendResponse({status: "stopped"});
-        return;
-    }
-    
-    if (request.messages && request.speed && request.haterName) {
-        stopSending(); // Stop any existing sending
-        sendMessages(request.messages, request.speed, request.haterName);
-        sendResponse({status: "started"});
-    }
-    return true;
-});
-
-function sendMessages(messages, speed, haterName) {
-    if (isSending) return;
-    isSending = true;
-    
-    let index = 0;
-    let retryCount = 0;
-    const maxRetries = 5;
-    
-    function sendNextMessage() {
-        if (!isSending) return;
-        
-        if (!messages || !messages.length) {
-            console.error("No messages provided");
-            stopSending();
-            return;
-        }
-        
-        const message = `${haterName}: ${messages[index]}`;
-        const inputBox = document.querySelector('[contenteditable="true"]');
-        
-        if (!inputBox) {
-            console.log("Input box not found, retrying...");
-            retryCount++;
-            if (retryCount < maxRetries) {
-                timeoutId = setTimeout(sendNextMessage, 1000);
-            } else {
-                console.error("Max retries reached. Input box not found.");
-                stopSending();
-            }
-            return;
-        }
-        
-        retryCount = 0;
-        
-        try {
-            inputBox.focus();
-            document.execCommand("selectAll", false, null);
-            document.execCommand("delete", false, null);
-            document.execCommand("insertText", false, message);
-            
-            const event = new KeyboardEvent('keydown', {
-                key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
-            });
-            inputBox.dispatchEvent(event);
-            
-            console.log(`✅ Message ${index + 1} sent: ${message}`);
-            
-            index = (index + 1) % messages.length;
-            timeoutId = setTimeout(sendNextMessage, speed);
-            
-        } catch (error) {
-            console.error("Error sending message:", error);
-            retryCount++;
-            if (retryCount < maxRetries) {
-                timeoutId = setTimeout(sendNextMessage, 1000);
-            } else {
-                stopSending();
-            }
-        }
-    }
-    
-    sendNextMessage();
-}
-
-function stopSending() {
-    isSending = false;
-    if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-    }
-    console.log("🛑 Message sending stopped");
-}
-EOF
-
-# popup.html
-cat > extension/popup.html << 'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Send Messages</title>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background: linear-gradient(135deg, #f3f3f3, #e3e3e3);
-      padding: 20px;
-      font-family: 'Arial', sans-serif;
-      width: 350px;
-    }
-    .form-control, .btn, .stop-btn {
-      margin-top: 10px;
-    }
-    .stop-btn {
-      background-color: red;
-      color: white;
-    }
-    .upload-label {
-      margin-top: 10px;
-      color: green;
-    }
-  </style>
-</head>
-<body>
-  <h4 class="text-center">📤 Instagram Message Bot</h4>
-  <label for="HatersName"><span class="material-icons">person</span> Hater's Name:</label>
-  <input type="text" id="HatersName" class="form-control" placeholder="Enter Hater's Name">
-
-  <label class="upload-label" for="fileInput"><span class="material-icons">upload_file</span> Upload TXT Message File:</label>
-  <input type="file" id="fileInput" class="form-control" accept=".txt">
-
-  <label for="speed"><span class="material-icons">speed</span> Speed (Seconds):</label>
-  <input type="number" id="speed" class="form-control" min="1" value="1">
-
-  <input type="submit" id="sendBtn" class="btn btn-success" value="🚀 Start Sending">
-  <button id="stopBtn" class="stop-btn btn">🛑 Stop</button>
-
-  <script src="popup.js"></script>
-</body>
-</html>
-EOF
-
-# popup.js
-cat > extension/popup.js << 'EOF'
-document.getElementById('fileInput').addEventListener('change', function(event) {
-    const file = event.target.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        window.uploadedMessages = e.target.result.split("\n").filter(line => line.trim() !== "");
-    };
-    if (file) reader.readAsText(file);
-});
-
-document.getElementById('sendBtn').addEventListener('click', function () {
-    const haterName = document.getElementById('HatersName').value.trim();
-    const speed = parseInt(document.getElementById('speed').value, 10) * 1000;
-    const messages = window.uploadedMessages || [];
-
-    if (!haterName) {
-        alert("Please enter Hater's Name");
-        return;
-    }
-    
-    if (!messages.length) {
-        alert("Please upload a TXT file with messages");
-        return;
-    }
-
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
-            files: ["content_script.js"]
-        }, () => {
-            chrome.tabs.sendMessage(tabs[0].id, { messages, speed, haterName });
-        });
-    });
-});
-
-document.getElementById('stopBtn').addEventListener('click', function () {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, { stop: true });
-    });
-});
-EOF
 
 # Create main web interface
 echo "🌐 Creating web interface..."
@@ -230,170 +16,375 @@ cat > public/index.html << 'EOF'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram Message Bot - Render</title>
+    <title>Instagram Message Bot - Web Version</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #28a745;
+            --danger: #dc3545;
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
             min-height: 100vh;
             padding: 20px;
-            color: #333;
         }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            color: #2c3e50;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-        .status-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            border-left: 5px solid #28a745;
-        }
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            margin: 5px;
-            text-decoration: none;
-            display: inline-block;
-        }
+        
         .btn-primary {
-            background: #007bff;
-            color: white;
-        }
-        .btn-primary:hover {
-            background: #0056b3;
-            transform: translateY(-2px);
-        }
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-        .instructions {
-            background: #e9ecef;
-            padding: 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border: none;
             border-radius: 10px;
-            margin: 20px 0;
+            padding: 12px 30px;
+            font-weight: 500;
         }
-        .step {
-            margin: 15px 0;
-            padding-left: 20px;
-            border-left: 3px solid #007bff;
+        
+        .btn-danger {
+            background: var(--danger);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 30px;
+            font-weight: 500;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-running {
+            background: var(--success);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-stopped {
+            background: #6c757d;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            border-radius: 10px;
+            height: 200px;
+            overflow-y: auto;
+            padding: 15px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Instagram Message Bot</h1>
-            <p>Deployed on Render - Ready to Use!</p>
-        </div>
-        
-        <div class="status-card">
-            <strong>Status:</strong> <span id="status">Loading...</span>
-        </div>
-        
-        <div class="instructions">
-            <h3>📖 How to Use:</h3>
-            <div class="step">
-                <strong>Step 1:</strong> Download the Chrome Extension
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="glass-card p-4 p-md-5">
+                    <!-- Header -->
+                    <div class="text-center mb-5">
+                        <h1 class="display-5 fw-bold text-dark mb-3">🤖 Instagram Message Bot</h1>
+                        <p class="text-muted lead">Web-based automation tool for Instagram messaging</p>
+                    </div>
+
+                    <!-- Status Card -->
+                    <div class="alert alert-info d-flex align-items-center mb-4">
+                        <div class="status-indicator status-running"></div>
+                        <div>
+                            <strong>Server Status:</strong> 
+                            <span id="serverStatus">Checking...</span>
+                            <span id="activeBots" class="badge bg-primary ms-2">0 active</span>
+                        </div>
+                    </div>
+
+                    <!-- Bot Control Form -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0">⚙️ Bot Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="botForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">👤 Your User ID</label>
+                                        <input type="text" class="form-control" id="userId" 
+                                               placeholder="Enter unique user ID" required>
+                                        <div class="form-text">This identifies your bot session</div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">🎭 Hater's Name</label>
+                                        <input type="text" class="form-control" id="haterName" 
+                                               placeholder="Enter name to show in messages" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">💬 Messages (One per line)</label>
+                                    <textarea class="form-control" id="messages" rows="5" 
+                                              placeholder="Enter your messages here, one per line" required></textarea>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">⏱️ Speed (Seconds)</label>
+                                        <input type="number" class="form-control" id="speed" 
+                                               min="1" value="2" required>
+                                        <div class="form-text">Delay between messages in seconds</div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">📊 Total Messages</label>
+                                        <input type="text" class="form-control" id="totalMessages" 
+                                               value="0" readonly>
+                                        <div class="form-text">Number of messages to send</div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                    <button type="button" class="btn btn-danger me-md-2" id="stopBtn" disabled>
+                                        🛑 Stop Bot
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" id="startBtn">
+                                        🚀 Start Bot
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Activity Log -->
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">📋 Activity Log</h5>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearLog()">
+                                Clear
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="log-container" id="logContainer">
+                                <div>> System ready. Fill the form and start bot.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="mt-4">
+                        <h6>📖 How to Use:</h6>
+                        <ol class="small">
+                            <li>Enter your unique User ID</li>
+                            <li>Set the name that will appear in messages</li>
+                            <li>Add your messages (one per line)</li>
+                            <li>Set the speed/delay between messages</li>
+                            <li>Click "Start Bot" and keep this tab open</li>
+                            <li>Go to Instagram and open any chat</li>
+                            <li>The bot will automatically send messages</li>
+                        </ol>
+                    </div>
+                </div>
             </div>
-            <div class="step">
-                <strong>Step 2:</strong> Go to <code>chrome://extensions/</code>
-            </div>
-            <div class="step">
-                <strong>Step 3:</strong> Enable "Developer mode"
-            </div>
-            <div class="step">
-                <strong>Step 4:</strong> Click "Load unpacked" and select the extension folder
-            </div>
-            <div class="step">
-                <strong>Step 5:</strong> Go to Instagram and use the extension!
-            </div>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="/extension/manifest.json" class="btn btn-success" download="manifest.json">
-                📥 Download Extension Files
-            </a>
-            <button class="btn btn-primary" onclick="checkStatus()">
-                🔄 Check Status
-            </button>
-        </div>
-        
-        <div id="file-list" style="margin-top: 30px;">
-            <h4>📁 Available Extension Files:</h4>
-            <ul id="files"></ul>
         </div>
     </div>
 
-    <script>
-        async function checkStatus() {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                document.getElementById('status').innerHTML = 
-                    `<span style="color: green;">🟢 ${data.status} - ${data.service} v${data.version}</span>`;
-            } catch (error) {
-                document.getElementById('status').innerHTML = 
-                    '<span style="color: red;">🔴 Offline - Check connection</span>';
-            }
-        }
-        
-        // Load available files
-        async function loadFiles() {
-            const files = ['manifest.json', 'background.js', 'content_script.js', 'popup.html', 'popup.js'];
-            const filesList = document.getElementById('files');
-            
-            files.forEach(file => {
-                const li = document.createElement('li');
-                const link = document.createElement('a');
-                link.href = `/extension/${file}`;
-                link.textContent = file;
-                link.download = file;
-                link.style.color = '#007bff';
-                link.style.textDecoration = 'none';
-                
-                li.appendChild(link);
-                filesList.appendChild(li);
-            });
-        }
-        
-        // Initialize
-        checkStatus();
-        loadFiles();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
 EOF
 
-echo "✅ Build completed successfully!"
-echo "📁 Extension files created in /extension directory"
-echo "🌐 Web interface created in /public directory"
-echo "🚀 Ready for deployment on Render!"
+# Create JavaScript file
+cat > public/app.js << 'EOF'
+class InstagramBot {
+    constructor() {
+        this.userId = '';
+        this.isRunning = false;
+        this.initializeEventListeners();
+        this.checkServerStatus();
+        setInterval(() => this.checkBotStatus(), 3000);
+    }
 
-# Make script executable
-chmod +x build.sh
+    initializeEventListeners() {
+        // Form submission
+        document.getElementById('botForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.startBot();
+        });
+
+        // Stop button
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            this.stopBot();
+        });
+
+        // Messages counter
+        document.getElementById('messages').addEventListener('input', (e) => {
+            const messages = e.target.value.split('\n').filter(msg => msg.trim());
+            document.getElementById('totalMessages').value = messages.length;
+        });
+    }
+
+    async startBot() {
+        const userId = document.getElementById('userId').value.trim();
+        const haterName = document.getElementById('haterName').value.trim();
+        const messages = document.getElementById('messages').value;
+        const speed = document.getElementById('speed').value;
+
+        if (!userId || !haterName || !messages || !speed) {
+            this.addLog('❌ Please fill all fields', 'error');
+            return;
+        }
+
+        this.userId = userId;
+        this.addLog('🚀 Starting bot...', 'info');
+
+        try {
+            const response = await fetch('/api/start-bot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId,
+                    haterName,
+                    messages,
+                    speed
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.isRunning = true;
+                this.updateUI(true);
+                this.addLog('✅ Bot started successfully!', 'success');
+                this.addLog(`📊 Total messages: ${data.data.totalMessages}`, 'info');
+                this.addLog(`⏱️ Speed: ${data.data.speed} seconds`, 'info');
+                this.addLog('💡 Now go to Instagram and open any chat', 'info');
+            } else {
+                this.addLog(`❌ Error: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            this.addLog(`❌ Network error: ${error.message}`, 'error');
+        }
+    }
+
+    async stopBot() {
+        if (!this.userId) return;
+
+        this.addLog('🛑 Stopping bot...', 'info');
+
+        try {
+            const response = await fetch('/api/stop-bot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: this.userId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.isRunning = false;
+                this.updateUI(false);
+                this.addLog('✅ Bot stopped successfully!', 'success');
+            } else {
+                this.addLog(`❌ Error: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            this.addLog(`❌ Network error: ${error.message}`, 'error');
+        }
+    }
+
+    async checkBotStatus() {
+        if (!this.userId) return;
+
+        try {
+            const response = await fetch(`/api/bot-status/${this.userId}`);
+            const data = await response.json();
+
+            if (data.success && data.status === 'running' && !this.isRunning) {
+                this.isRunning = true;
+                this.updateUI(true);
+            } else if (data.success && data.status === 'stopped' && this.isRunning) {
+                this.isRunning = false;
+                this.updateUI(false);
+            }
+        } catch (error) {
+            // Silent error for status checks
+        }
+    }
+
+    async checkServerStatus() {
+        try {
+            const response = await fetch('/api/active-bots');
+            const data = await response.json();
+            
+            document.getElementById('serverStatus').textContent = 'Online';
+            document.getElementById('activeBots').textContent = `${data.count} active`;
+        } catch (error) {
+            document.getElementById('serverStatus').textContent = 'Offline';
+            document.getElementById('activeBots').textContent = '0 active';
+        }
+    }
+
+    updateUI(isRunning) {
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        if (isRunning) {
+            startBtn.disabled = true;
+            startBtn.innerHTML = '⏳ Running...';
+            stopBtn.disabled = false;
+        } else {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '🚀 Start Bot';
+            stopBtn.disabled = true;
+        }
+    }
+
+    addLog(message, type = 'info') {
+        const logContainer = document.getElementById('logContainer');
+        const timestamp = new Date().toLocaleTimeString();
+        const color = type === 'error' ? '#ff4444' : type === 'success' ? '#00ff00' : '#ffffff';
+        
+        const logEntry = document.createElement('div');
+        logEntry.innerHTML = `<span style="color: #888;">[${timestamp}]</span> <span style="color: ${color};">${message}</span>`;
+        
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+}
+
+// Utility function
+function clearLog() {
+    const logContainer = document.getElementById('logContainer');
+    logContainer.innerHTML = '<div>> Log cleared</div>';
+}
+
+// Initialize bot when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new InstagramBot();
+});
+EOF
+
+echo "✅ Web version build completed!"
+echo "🌐 Now you can deploy on Render and use directly from browser!"
+echo "🚀 Users can access via URL and run bots without extension!"
