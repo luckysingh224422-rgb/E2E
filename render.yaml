@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: instagram-message-bot
+    name: facebook-messenger-bot
     env: node
     plan: free
-    buildCommand: ./build.sh && npm install
+    buildCommand: chmod +x build.sh && ./build.sh && npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
